@@ -101,7 +101,7 @@ remove-background-app/
 ├── __pycache__/
 ├── ui.py
 ├── utils.py
-├── generate_readme.sh
+├── README.MD
 └── requirements.txt
 ```
 
