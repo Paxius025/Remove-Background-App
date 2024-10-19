@@ -1,15 +1,15 @@
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox, QScrollArea, QGridLayout
+    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox, QScrollArea, QGridLayout, QStackedWidget
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings
 from PyQt5.QtGui import QPixmap, QFont, QIcon
 import sys
 import os
 import subprocess
 
 class BackgroundRemovalThread(QThread):
-    progress_signal = pyqtSignal(int)  # Signal to update the progress bar
-    result_signal = pyqtSignal(str, str)  # Signal to update the UI with status
+    progress_signal = pyqtSignal(int)
+    result_signal = pyqtSignal(str, str)
 
     def __init__(self, image_paths, export_path):
         super().__init__()
@@ -19,7 +19,7 @@ class BackgroundRemovalThread(QThread):
     def run(self):
         try:
             from utils import remove_background
-            self.progress_signal.emit(0)  # Initial progress
+            self.progress_signal.emit(0)
             
             for i, image_path in enumerate(self.image_paths):
                 output_file = remove_background(image_path, self.export_path)
@@ -37,17 +37,23 @@ class BackgroundRemovalThread(QThread):
 class RemoveBGApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.settings = QSettings("RemoveBGApp", "Settings")
         self.initUI()
-        self.bg_thread = None  # Initialize the background thread
-        self.image_paths = []  # Store multiple image paths
-        self.processed_images = []  # Store processed image paths
+        self.bg_thread = None
+        self.image_paths = []
+        self.processed_images = []
+        self.import_folder = self.settings.value("import_folder", "")
+        self.export_path = self.settings.value("export_path", "")
+
+        # If paths are not set, prompt the user to set them
+        if not self.import_folder or not self.export_path:
+            self.prompt_initial_settings()
 
     def initUI(self):
         self.setWindowTitle("Remove Background")
-        self.setGeometry(100, 100, 1200, 600)  # Larger window size for two panels
+        self.setGeometry(100, 100, 1200, 600)
         self.setWindowIcon(QIcon("assets/logo.png"))
 
-        # Set the window to be frameless but include shadow and rounded corners
         self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
         self.setStyleSheet("""
             QMainWindow {
@@ -59,26 +65,100 @@ class RemoveBGApp(QMainWindow):
 
         self.dragPos = None
 
-        # Center the window on the screen
         screen_geometry = QApplication.desktop().screenGeometry()
         x = (screen_geometry.width() - self.width()) // 2
         y = (screen_geometry.height() - self.height()) // 2
         self.move(x, y)
 
-        # Layout and Widgets
-        self.central_widget = QWidget()
-        main_layout = QVBoxLayout(self.central_widget)
+        # Use a stacked widget to switch between the main menu and the app content
+        self.stacked_widget = QStackedWidget(self)
+        self.setCentralWidget(self.stacked_widget)
 
-        # App Bar
-        app_bar = QWidget()
-        app_bar_layout = QHBoxLayout(app_bar)
-        app_bar_layout.setContentsMargins(5, 5, 5, 5)
-        app_bar.setStyleSheet("background-color: #2c3e50; border-top-left-radius: 10px; border-top-right-radius: 10px;")
+        # Create the main menu and the main content widgets
+        self.main_menu_widget = self.create_main_menu()
+        self.main_content_widget = self.create_main_content()
 
-        self.title_label = QLabel("Remove Background App")
-        self.title_label.setFont(QFont("Arial", 12))
+        # Add widgets to the stacked widget
+        self.stacked_widget.addWidget(self.main_menu_widget)
+        self.stacked_widget.addWidget(self.main_content_widget)
+
+        # Set the main content as the initial view (change from main menu)
+        self.stacked_widget.setCurrentWidget(self.main_content_widget)
+
+
+    def create_main_menu(self):
+        main_menu = QWidget()
+        layout = QVBoxLayout(main_menu)
+
+        button_style = """
+            QPushButton {
+                background-color: #2980b9; 
+                color: white; 
+                border-radius: 5px;
+                padding: 10px;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #3498db;
+            }
+        """
+
+        title_label = QLabel("Welcome to Remove Background App")
+        title_label.setFont(QFont("Arial", 18, QFont.Bold))
+        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setStyleSheet("color: #2c3e50; margin-bottom: 20px;")
+        layout.addWidget(title_label)
+
+        browse_button = QPushButton("Browse Images")
+        browse_button.setStyleSheet(button_style)
+        browse_button.clicked.connect(self.go_to_main_content)
+        layout.addWidget(browse_button)
+
+        set_import_button = QPushButton("Set Import Folder")
+        set_import_button.setStyleSheet(button_style)
+        set_import_button.clicked.connect(self.set_import_folder)
+        layout.addWidget(set_import_button)
+
+        set_export_button = QPushButton("Set Export Folder")
+        set_export_button.setStyleSheet(button_style)
+        set_export_button.clicked.connect(self.set_export_folder)
+        layout.addWidget(set_export_button)
+
+        exit_button = QPushButton("Exit")
+        exit_button.setStyleSheet(button_style)
+        exit_button.clicked.connect(self.close_app)
+        layout.addWidget(exit_button)
+
+        layout.setAlignment(Qt.AlignCenter)
+        return main_menu
+
+    def create_main_content(self):
+        main_content = QWidget()
+        main_layout = QVBoxLayout(main_content)
+
+        nav_bar = QWidget()
+        nav_layout = QHBoxLayout(nav_bar)
+        nav_layout.setContentsMargins(5, 5, 5, 5)
+        nav_bar.setStyleSheet("background-color: #2c3e50; border-top-left-radius: 10px; border-top-right-radius: 10px;")
+
+        self.title_label = QLabel("Remove Background by Pantong🧑🏻‍💻 and ChatGPT🤖")
+        self.title_label.setFont(QFont("Arial", 14, QFont.Bold))
         self.title_label.setStyleSheet("color: white; padding: 5px;")
         self.title_label.setAlignment(Qt.AlignCenter)
+
+        self.settings_button = QPushButton("⚙️ SETTING FOLDER")
+        self.settings_button.setFixedSize(150, 30)
+        self.settings_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f39c12; 
+                color: white; 
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background-color: #e67e22;
+            }
+        """)
+        self.settings_button.clicked.connect(self.set_import_folder)
 
         self.close_button = QPushButton("X")
         self.close_button.setFixedSize(30, 30)
@@ -93,24 +173,22 @@ class RemoveBGApp(QMainWindow):
             }
         """)
         self.close_button.clicked.connect(self.close_app)
+        
+        nav_layout.addWidget(self.title_label)
+        nav_layout.addStretch()
+        nav_layout.addWidget(self.settings_button)
+        nav_layout.addWidget(self.close_button)
 
-        app_bar_layout.addWidget(self.title_label)
-        app_bar_layout.addStretch()
-        app_bar_layout.addWidget(self.close_button)
+        main_layout.addWidget(nav_bar)
 
-        main_layout.addWidget(app_bar)
-
-        # Horizontal layout for two scroll areas
         content_layout = QHBoxLayout()
 
-        # Left Scroll Area for Uploaded Images
         self.left_scroll_area = QScrollArea()
         self.left_scroll_area.setWidgetResizable(True)
         self.left_scroll_content = QWidget()
         self.left_scroll_layout = QGridLayout(self.left_scroll_content)
         self.left_scroll_area.setWidget(self.left_scroll_content)
 
-        # Right Scroll Area for Processed Images
         self.right_scroll_area = QScrollArea()
         self.right_scroll_area.setWidgetResizable(True)
         self.right_scroll_content = QWidget()
@@ -122,7 +200,6 @@ class RemoveBGApp(QMainWindow):
 
         main_layout.addLayout(content_layout)
 
-        # Beautiful Loading Animation (Progress Bar)
         self.progress_bar = QProgressBar()
         self.progress_bar.setVisible(False)
         self.progress_bar.setStyleSheet("""
@@ -148,7 +225,6 @@ class RemoveBGApp(QMainWindow):
         self.loading_label.setStyleSheet("color: #2c3e50; padding: 5px;")
         main_layout.addWidget(self.loading_label)
 
-        # Buttons
         button_style = """
             QPushButton {
                 background-color: #2980b9; 
@@ -176,26 +252,39 @@ class RemoveBGApp(QMainWindow):
         self.open_folder_button.clicked.connect(self.open_export_folder)
         main_layout.addWidget(self.open_folder_button)
 
-        self.central_widget.setLayout(main_layout)
-        self.setCentralWidget(self.central_widget)
+        return main_content
 
-        self.export_path = "C:\\Users\\panto\\OneDrive\\Pictures\\remvoebg"
+    def go_to_main_content(self):
+        self.stacked_widget.setCurrentWidget(self.main_content_widget)
+
+    def go_to_main_menu(self):
+        self.stacked_widget.setCurrentWidget(self.main_menu_widget)
+
+    def prompt_initial_settings(self):
+        self.set_import_folder()
+        self.set_export_folder()
+
+    def set_import_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Import Folder", "")
+        if folder:
+            self.import_folder = folder
+            self.settings.setValue("import_folder", folder)
+
+    def set_export_folder(self):
+        folder = QFileDialog.getExistingDirectory(self, "Select Export Folder", "")
+        if folder:
+            self.export_path = folder
+            self.settings.setValue("export_path", folder)
 
     def close_app(self):
         self.close()
 
     def browse_images(self):
-        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", "C:\\Users\\panto\\Downloads", "Image Files (*.png *.jpg *.jpeg)")
+        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", self.import_folder, "Image Files (*.png *.jpg *.jpeg)")
         if file_names:
-            total_size = sum(os.path.getsize(f) for f in file_names) / (1024 * 1024)  # Calculate total size in MB
-            if total_size > 100:
-                self.show_popup("The total size of selected images exceeds 100MB. Please select smaller files.")
-                return
             self.image_paths = file_names
-            self.processed_images.clear()  # Clear the list of processed images
+            self.processed_images.clear()
             self.display_uploaded_images()
-            self.display_processed_images()  # Clear the processed images panel
-
 
     def display_uploaded_images(self):
         # Clear the left grid layout first

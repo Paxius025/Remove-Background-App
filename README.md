@@ -55,32 +55,6 @@ pip install -r requirements.txt
 python ui.py
 ```
 
-## 🔄 Changing the Default Paths
-
-### 📂 Modifying the Browse Path and Export Path
-
-To change the starting path when browsing for images:
-
-- **1.** Open the `ui.py` file in your code editor.
-- **2.** Locate the `browse_image` method (around line 100).
-- **3.** Update the path in the `QFileDialog.getOpenFileName` function to your desired default directory.
-
-```python 
-
-file_name, _ = QFileDialog.getOpenFileName(self, "Open Image", "C:\\Users\\<your-path>\\Browse_Path", "Image Files (*.png *.jpg *.jpeg)")
-```
-
-To change the starting path when browsing for images:
-
-- **1.** Open the `ui.py` file in your code editor.
-- **2.** Locate the `browse_image` method (around line 182).
-- **3.** Update the path in the `self.export_path = "C:\\Users\\<your-path>\\Export_Path"` function to your desired default directory.
-
-
-```python - 
-self.export_path = "C:\\Users\\<your-path>\\Export_Path"
-```
-
 ### 5. Build the Executable (Optional)
 
 To build an executable version of the app:
