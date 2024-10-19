@@ -179,20 +179,23 @@ class RemoveBGApp(QMainWindow):
         self.central_widget.setLayout(main_layout)
         self.setCentralWidget(self.central_widget)
 
-        self.export_path = "C:\\Users\\<your-path>\\Export_Path"
+        self.export_path = "C:\\Users\\panto\\OneDrive\\Pictures\\remvoebg"
 
     def close_app(self):
         self.close()
 
     def browse_images(self):
-        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", "C:\\Users\\<your-path>\\Browse_Path", "Image Files (*.png *.jpg *.jpeg)")
+        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", "C:\\Users\\panto\\Downloads", "Image Files (*.png *.jpg *.jpeg)")
         if file_names:
             total_size = sum(os.path.getsize(f) for f in file_names) / (1024 * 1024)  # Calculate total size in MB
             if total_size > 100:
                 self.show_popup("The total size of selected images exceeds 100MB. Please select smaller files.")
                 return
             self.image_paths = file_names
+            self.processed_images.clear()  # Clear the list of processed images
             self.display_uploaded_images()
+            self.display_processed_images()  # Clear the processed images panel
+
 
     def display_uploaded_images(self):
         # Clear the left grid layout first
