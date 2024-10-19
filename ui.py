@@ -18,7 +18,7 @@ class BackgroundRemovalThread(QThread):
 
     def run(self):
         try:
-            from utils.utils import remove_background
+            from utils import remove_background
             self.progress_signal.emit(0)  # Initial progress
             
             for i, image_path in enumerate(self.image_paths):
