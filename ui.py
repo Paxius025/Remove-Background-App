@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox
+    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox, QScrollArea, QGridLayout
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QIcon
@@ -18,7 +18,7 @@ class BackgroundRemovalThread(QThread):
 
     def run(self):
         try:
-            from utils import remove_background
+            from utils.utils import remove_background
             self.progress_signal.emit(0)  # Initial progress
             
             for i, image_path in enumerate(self.image_paths):
@@ -28,9 +28,9 @@ class BackgroundRemovalThread(QThread):
                     return
                 progress = int((i + 1) / len(self.image_paths) * 100)
                 self.progress_signal.emit(progress)
-                self.msleep(20)  # Simulate some processing time
+                self.result_signal.emit("success", output_file)
 
-            self.result_signal.emit("success", "")
+            self.result_signal.emit("done", "")
         except Exception as e:
             self.result_signal.emit("error", str(e))
 
@@ -40,10 +40,11 @@ class RemoveBGApp(QMainWindow):
         self.initUI()
         self.bg_thread = None  # Initialize the background thread
         self.image_paths = []  # Store multiple image paths
+        self.processed_images = []  # Store processed image paths
 
     def initUI(self):
         self.setWindowTitle("Remove Background")
-        self.setGeometry(100, 100, 600, 400)  # Smaller window size
+        self.setGeometry(100, 100, 1200, 600)  # Larger window size for two panels
         self.setWindowIcon(QIcon("assets/logo.png"))
 
         # Set the window to be frameless but include shadow and rounded corners
@@ -66,7 +67,7 @@ class RemoveBGApp(QMainWindow):
 
         # Layout and Widgets
         self.central_widget = QWidget()
-        layout = QVBoxLayout(self.central_widget)
+        main_layout = QVBoxLayout(self.central_widget)
 
         # App Bar
         app_bar = QWidget()
@@ -97,22 +98,29 @@ class RemoveBGApp(QMainWindow):
         app_bar_layout.addStretch()
         app_bar_layout.addWidget(self.close_button)
 
-        layout.addWidget(app_bar)
+        main_layout.addWidget(app_bar)
 
-        # Image Display
-        image_layout = QHBoxLayout()
+        # Horizontal layout for two scroll areas
+        content_layout = QHBoxLayout()
 
-        self.original_image_label = QLabel("Original Image")
-        self.original_image_label.setAlignment(Qt.AlignCenter)
-        self.original_image_label.setStyleSheet("border: 1px solid #ccc; padding: 5px;")
-        image_layout.addWidget(self.original_image_label)
+        # Left Scroll Area for Uploaded Images
+        self.left_scroll_area = QScrollArea()
+        self.left_scroll_area.setWidgetResizable(True)
+        self.left_scroll_content = QWidget()
+        self.left_scroll_layout = QGridLayout(self.left_scroll_content)
+        self.left_scroll_area.setWidget(self.left_scroll_content)
 
-        self.processed_image_label = QLabel("Processed Image")
-        self.processed_image_label.setAlignment(Qt.AlignCenter)
-        self.processed_image_label.setStyleSheet("border: 1px solid #ccc; padding: 5px;")
-        image_layout.addWidget(self.processed_image_label)
+        # Right Scroll Area for Processed Images
+        self.right_scroll_area = QScrollArea()
+        self.right_scroll_area.setWidgetResizable(True)
+        self.right_scroll_content = QWidget()
+        self.right_scroll_layout = QGridLayout(self.right_scroll_content)
+        self.right_scroll_area.setWidget(self.right_scroll_content)
 
-        layout.addLayout(image_layout)
+        content_layout.addWidget(self.left_scroll_area)
+        content_layout.addWidget(self.right_scroll_area)
+
+        main_layout.addLayout(content_layout)
 
         # Beautiful Loading Animation (Progress Bar)
         self.progress_bar = QProgressBar()
@@ -132,13 +140,13 @@ class RemoveBGApp(QMainWindow):
                 border-radius: 5px;
             }
         """)
-        layout.addWidget(self.progress_bar)
+        main_layout.addWidget(self.progress_bar)
 
         self.loading_label = QLabel("Ready")
         self.loading_label.setAlignment(Qt.AlignCenter)
         self.loading_label.setFont(QFont("Arial", 10, QFont.Bold))
         self.loading_label.setStyleSheet("color: #2c3e50; padding: 5px;")
-        layout.addWidget(self.loading_label)
+        main_layout.addWidget(self.loading_label)
 
         # Buttons
         button_style = """
@@ -156,19 +164,19 @@ class RemoveBGApp(QMainWindow):
         self.browse_button = QPushButton("Browse Images")
         self.browse_button.setStyleSheet(button_style)
         self.browse_button.clicked.connect(self.browse_images)
-        layout.addWidget(self.browse_button)
+        main_layout.addWidget(self.browse_button)
 
         self.remove_bg_button = QPushButton("Remove Background")
         self.remove_bg_button.setStyleSheet(button_style)
         self.remove_bg_button.clicked.connect(self.start_background_removal)
-        layout.addWidget(self.remove_bg_button)
+        main_layout.addWidget(self.remove_bg_button)
 
         self.open_folder_button = QPushButton("Open Export Folder")
         self.open_folder_button.setStyleSheet(button_style)
         self.open_folder_button.clicked.connect(self.open_export_folder)
-        layout.addWidget(self.open_folder_button)
+        main_layout.addWidget(self.open_folder_button)
 
-        self.central_widget.setLayout(layout)
+        self.central_widget.setLayout(main_layout)
         self.setCentralWidget(self.central_widget)
 
         self.export_path = "C:\\Users\\panto\\OneDrive\\Pictures\\remvoebg"
@@ -184,10 +192,29 @@ class RemoveBGApp(QMainWindow):
                 self.show_popup("The total size of selected images exceeds 100MB. Please select smaller files.")
                 return
             self.image_paths = file_names
-            pixmap = QPixmap(file_names[0]).scaled(200, 200, Qt.KeepAspectRatio)
-            self.original_image_label.setPixmap(pixmap)
-            self.processed_image_label.clear()
-            self.loading_label.setText("Ready")
+            self.display_uploaded_images()
+
+    def display_uploaded_images(self):
+        # Clear the left grid layout first
+        for i in reversed(range(self.left_scroll_layout.count())): 
+            widget = self.left_scroll_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        # Fixed square size for image display
+        display_size = 100
+
+        # Add all uploaded images to the left grid layout
+        for idx, image_path in enumerate(self.image_paths):
+            pixmap = QPixmap(image_path)
+            if not pixmap.isNull():
+                label = QLabel()
+                scaled_pixmap = pixmap.scaled(display_size, display_size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                label.setPixmap(scaled_pixmap)
+                label.setFixedSize(display_size, display_size)  # Ensure the label is square
+                self.left_scroll_layout.addWidget(label, idx // 2, idx % 2)
+
+        self.loading_label.setText("Ready")
 
     def start_background_removal(self):
         if self.image_paths:
@@ -234,14 +261,37 @@ class RemoveBGApp(QMainWindow):
     def update_progress_bar(self, value):
         self.progress_bar.setValue(value)
 
-    def update_ui_after_removal(self, status, _):
-        self.progress_bar.setVisible(False)
+    def update_ui_after_removal(self, status, output_file):
         if status == "success":
+            self.processed_images.append(output_file)
+            self.display_processed_images()
+        elif status == "done":
+            self.progress_bar.setVisible(False)
             self.loading_label.setText("Backgrounds removed successfully!")
             self.loading_label.setStyleSheet("color: #27ae60;")
         else:
             self.loading_label.setText("Error processing images.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
+
+    def display_processed_images(self):
+        # Clear the right grid layout first
+        for i in reversed(range(self.right_scroll_layout.count())): 
+            widget = self.right_scroll_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+
+        # Fixed square size for processed images display
+        display_size = 100
+
+        # Display processed images in the right grid layout
+        for idx, processed_image in enumerate(self.processed_images):
+            pixmap = QPixmap(processed_image)
+            if not pixmap.isNull():
+                label = QLabel()
+                scaled_pixmap = pixmap.scaled(display_size, display_size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                label.setPixmap(scaled_pixmap)
+                label.setFixedSize(display_size, display_size)  # Ensure the label is square
+                self.right_scroll_layout.addWidget(label, idx // 2, idx % 2)
 
     def open_export_folder(self):
         if os.path.exists(self.export_path):
