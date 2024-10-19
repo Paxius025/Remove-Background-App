@@ -416,11 +416,21 @@ class RemoveBGApp(QMainWindow):
 
     def start_background_removal(self):
         if self.image_paths:
+            # Clear the previously processed images in the output panel
+            for i in reversed(range(self.right_scroll_layout.count())): 
+                widget = self.right_scroll_layout.itemAt(i).widget()
+                if widget:
+                    widget.setParent(None)  # Clear the processed images
+
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
 
+            # Clear any previously processed images in the processed_images list
+            self.processed_images.clear()
+
+            # Start the background removal thread
             self.bg_thread = BackgroundRemovalThread(self.image_paths, self.export_path)
             self.bg_thread.progress_signal.connect(self.update_progress_bar)
             self.bg_thread.result_signal.connect(self.update_ui_after_removal)
@@ -488,8 +498,11 @@ class RemoveBGApp(QMainWindow):
                 self.right_scroll_layout.addWidget(label, idx // 2, idx % 2)
 
     def open_export_folder(self):
-        if os.path.exists(self.export_path):
+        if self.export_path and os.path.exists(self.export_path):
             subprocess.Popen(f'explorer "{self.export_path}"')
+        else:
+            self.show_popup("Export folder path is not set or does not exist.")
+
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
