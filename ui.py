@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar
+    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QPixmap, QFont, QIcon
@@ -11,9 +11,9 @@ class BackgroundRemovalThread(QThread):
     progress_signal = pyqtSignal(int)  # Signal to update the progress bar
     result_signal = pyqtSignal(str, str)  # Signal to update the UI with status
 
-    def __init__(self, image_path, export_path):
+    def __init__(self, image_paths, export_path):
         super().__init__()
-        self.image_path = image_path
+        self.image_paths = image_paths
         self.export_path = export_path
 
     def run(self):
@@ -21,16 +21,16 @@ class BackgroundRemovalThread(QThread):
             from utils import remove_background
             self.progress_signal.emit(0)  # Initial progress
             
-            # Simulate progress update for demo purposes (replace with actual steps in processing)
-            for i in range(1, 101):
-                self.progress_signal.emit(i)
-                self.msleep(30)  # Simulate some processing time
-            
-            output_file = remove_background(self.image_path, self.export_path)
-            if output_file:
-                self.result_signal.emit("success", output_file)
-            else:
-                self.result_signal.emit("error", "")
+            for i, image_path in enumerate(self.image_paths):
+                output_file = remove_background(image_path, self.export_path)
+                if not output_file:
+                    self.result_signal.emit("error", f"Error processing {os.path.basename(image_path)}")
+                    return
+                progress = int((i + 1) / len(self.image_paths) * 100)
+                self.progress_signal.emit(progress)
+                self.msleep(20)  # Simulate some processing time
+
+            self.result_signal.emit("success", "")
         except Exception as e:
             self.result_signal.emit("error", str(e))
 
@@ -39,6 +39,7 @@ class RemoveBGApp(QMainWindow):
         super().__init__()
         self.initUI()
         self.bg_thread = None  # Initialize the background thread
+        self.image_paths = []  # Store multiple image paths
 
     def initUI(self):
         self.setWindowTitle("Remove Background")
@@ -93,7 +94,7 @@ class RemoveBGApp(QMainWindow):
         self.close_button.clicked.connect(self.close_app)
 
         app_bar_layout.addWidget(self.title_label)
-        app_bar_layout.addStretch()  # Push the close button to the right
+        app_bar_layout.addStretch()
         app_bar_layout.addWidget(self.close_button)
 
         layout.addWidget(app_bar)
@@ -152,9 +153,9 @@ class RemoveBGApp(QMainWindow):
             }
         """
 
-        self.browse_button = QPushButton("Browse Image")
+        self.browse_button = QPushButton("Browse Images")
         self.browse_button.setStyleSheet(button_style)
-        self.browse_button.clicked.connect(self.browse_image)
+        self.browse_button.clicked.connect(self.browse_images)
         layout.addWidget(self.browse_button)
 
         self.remove_bg_button = QPushButton("Remove Background")
@@ -170,49 +171,76 @@ class RemoveBGApp(QMainWindow):
         self.central_widget.setLayout(layout)
         self.setCentralWidget(self.central_widget)
 
-        self.image_path = None
         self.export_path = "C:\\Users\\panto\\OneDrive\\Pictures\\remvoebg"
 
     def close_app(self):
         self.close()
 
-    def browse_image(self):
-        file_name, _ = QFileDialog.getOpenFileName(self, "Open Image", "C:\\Users\\panto\\Downloads", "Image Files (*.png *.jpg *.jpeg)")
-        if file_name:
-            self.image_path = file_name
-            pixmap = QPixmap(file_name).scaled(200, 200, Qt.KeepAspectRatio)
+    def browse_images(self):
+        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", "C:\\Users\\panto\\Downloads", "Image Files (*.png *.jpg *.jpeg)")
+        if file_names:
+            total_size = sum(os.path.getsize(f) for f in file_names) / (1024 * 1024)  # Calculate total size in MB
+            if total_size > 100:
+                self.show_popup("The total size of selected images exceeds 100MB. Please select smaller files.")
+                return
+            self.image_paths = file_names
+            pixmap = QPixmap(file_names[0]).scaled(200, 200, Qt.KeepAspectRatio)
             self.original_image_label.setPixmap(pixmap)
             self.processed_image_label.clear()
             self.loading_label.setText("Ready")
 
     def start_background_removal(self):
-        if self.image_path:
+        if self.image_paths:
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
 
             # Start the background removal thread
-            self.bg_thread = BackgroundRemovalThread(self.image_path, self.export_path)
+            self.bg_thread = BackgroundRemovalThread(self.image_paths, self.export_path)
             self.bg_thread.progress_signal.connect(self.update_progress_bar)
             self.bg_thread.result_signal.connect(self.update_ui_after_removal)
             self.bg_thread.start()
         else:
-            self.loading_label.setText("Please select an image first.")
+            self.loading_label.setText("Please select images first.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
+
+    def show_popup(self, message):
+        msg = QMessageBox(self)
+        msg.setWindowTitle("File Size Warning")
+        msg.setText(message)
+        msg.setIcon(QMessageBox.Warning)
+        msg.setStandardButtons(QMessageBox.Ok)
+        msg.setStyleSheet("""
+            QMessageBox {
+                background-color: #f8f9fa;
+            }
+            QLabel {
+                color: #2c3e50;
+                font-size: 12px;
+            }
+            QPushButton {
+                background-color: #e74c3c; 
+                color: white; 
+                border-radius: 5px;
+                padding: 5px 10px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+        msg.exec_()
 
     def update_progress_bar(self, value):
         self.progress_bar.setValue(value)
 
-    def update_ui_after_removal(self, status, output_file):
+    def update_ui_after_removal(self, status, _):
         self.progress_bar.setVisible(False)
         if status == "success":
-            pixmap = QPixmap(output_file).scaled(200, 200, Qt.KeepAspectRatio)
-            self.processed_image_label.setPixmap(pixmap)
-            self.loading_label.setText("Background removed successfully!")
+            self.loading_label.setText("Backgrounds removed successfully!")
             self.loading_label.setStyleSheet("color: #27ae60;")
         else:
-            self.loading_label.setText(f"Error processing image: {output_file}")
+            self.loading_label.setText("Error processing images.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
 
     def open_export_folder(self):
