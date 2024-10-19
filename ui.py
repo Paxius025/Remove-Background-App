@@ -1,17 +1,38 @@
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, QVBoxLayout, QHBoxLayout, QWidget, QProgressBar
 )
-from PyQt5.QtCore import Qt, QPropertyAnimation, QRect
-from PyQt5.QtGui import QPixmap, QPalette, QColor, QFont, QIcon
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtGui import QPixmap, QFont, QIcon
 import sys
 import os
 import subprocess
+
+class BackgroundRemovalThread(QThread):
+    progress_signal = pyqtSignal(str, str)  # Signal to update the UI with status
+
+    def __init__(self, image_path, export_path):
+        super().__init__()
+        self.image_path = image_path
+        self.export_path = export_path
+
+    def run(self):
+        try:
+            from utils import remove_background
+            output_file = remove_background(self.image_path, self.export_path)
+
+            if output_file:
+                self.progress_signal.emit("success", output_file)
+            else:
+                self.progress_signal.emit("error", "")
+        except Exception as e:
+            self.progress_signal.emit("error", str(e))
 
 class RemoveBGApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.initUI()
-        
+        self.bg_thread = None  # Initialize the background thread
+
     def initUI(self):
         self.setWindowTitle("Remove Background")
         self.setGeometry(100, 100, 600, 400)  # Smaller window size
@@ -112,7 +133,7 @@ class RemoveBGApp(QMainWindow):
 
         self.remove_bg_button = QPushButton("Remove Background")
         self.remove_bg_button.setStyleSheet(button_style)
-        self.remove_bg_button.clicked.connect(self.remove_background)
+        self.remove_bg_button.clicked.connect(self.start_background_removal)
         layout.addWidget(self.remove_bg_button)
 
         self.open_folder_button = QPushButton("Open Export Folder")
@@ -138,30 +159,30 @@ class RemoveBGApp(QMainWindow):
             self.processed_image_label.clear()
             self.loading_label.setText("Ready")
 
-    def remove_background(self):
+    def start_background_removal(self):
         if self.image_path:
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
-            QApplication.processEvents()  # Update the UI immediately
 
-            from utils import remove_background
-            output_file = remove_background(self.image_path, self.export_path)
-
-            if output_file:
-                processed_pixmap = QPixmap(output_file).scaled(200, 200, Qt.KeepAspectRatio)
-                self.processed_image_label.setPixmap(processed_pixmap)
-                self.loading_label.setText("Background removed successfully!")
-                self.loading_label.setStyleSheet("color: #27ae60;")
-            else:
-                self.loading_label.setText("Error processing image.")
-                self.loading_label.setStyleSheet("color: #e74c3c;")
-
+            # Start the background removal thread
+            self.bg_thread = BackgroundRemovalThread(self.image_path, self.export_path)
+            self.bg_thread.progress_signal.connect(self.update_ui_after_removal)
+            self.bg_thread.start()
         else:
             self.loading_label.setText("Please select an image first.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
 
+    def update_ui_after_removal(self, status, output_file):
+        if status == "success":
+            pixmap = QPixmap(output_file).scaled(200, 200, Qt.KeepAspectRatio)
+            self.processed_image_label.setPixmap(pixmap)
+            self.loading_label.setText("Background removed successfully!")
+            self.loading_label.setStyleSheet("color: #27ae60;")
+        else:
+            self.loading_label.setText(f"Error processing image: {output_file}")
+            self.loading_label.setStyleSheet("color: #e74c3c;")
+
     def open_export_folder(self):
-        # Open the export folder in the file explorer
         if os.path.exists(self.export_path):
             subprocess.Popen(f'explorer "{self.export_path}"')
 
