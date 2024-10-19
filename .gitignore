@@ -1,0 +1,20 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging directories
+build/
+dist/
+
+# Virtual environment
+env/
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Other system files
+*.log
+.DS_Store
+Thumbs.db
