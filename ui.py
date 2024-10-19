@@ -36,36 +36,80 @@ class BackgroundRemovalThread(QThread):
         except Exception as e:
             self.result_signal.emit("error", str(e))
 
+from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog
+from PyQt5.QtCore import Qt
+
 class FolderSettingsDialog(QDialog):
-    def __init__(self, import_folder, export_folder):
+    def __init__(self, main_app, import_folder, export_folder):
         super().__init__()
+        self.main_app = main_app  # Store the reference to the main app
+
+        # Remove the title bar
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+
         self.setWindowTitle("Set Folder Paths")
         self.setFixedSize(400, 200)
-        
+
         self.import_folder_line_edit = QLineEdit(import_folder)
         self.export_folder_line_edit = QLineEdit(export_folder)
 
-        browse_import_button = QPushButton("Browse")
+        # Styling for buttons
+        button_style = """
+            QPushButton {
+                background-color: #3498db; /* Base Color */
+                color: white; 
+                border-radius: 15px; 
+                padding: 10px 20px; /* More padding for a better look */
+                font-size: 14px; /* Increase font size */
+                border: 2px solid transparent; /* Border for hover effect */
+            }
+            QPushButton:hover {
+                background-color: #2980b9; /* Darker color on hover */
+            }
+            QPushButton:pressed {
+                background-color: #1abc9c; /* Color when pressed */
+            }
+        """
+
+        browse_import_button = QPushButton("🔎")
+        browse_import_button.setStyleSheet(button_style)
         browse_import_button.clicked.connect(self.browse_import_folder)
 
-        browse_export_button = QPushButton("Browse")
+        browse_export_button = QPushButton("🔎")
+        browse_export_button.setStyleSheet(button_style)
         browse_export_button.clicked.connect(self.browse_export_folder)
 
-        save_button = QPushButton("Save")
+        save_button = QPushButton("✅")
+        save_button.setStyleSheet(button_style)
         save_button.clicked.connect(self.save_folders)
 
-        cancel_button = QPushButton("Cancel")
+        cancel_button = QPushButton("🧹")
+        cancel_button.setStyleSheet(button_style)
         cancel_button.clicked.connect(self.close)
 
+        # Layout setup
         layout = QVBoxLayout()
-        layout.addWidget(QLabel("Import Folder:"))
-        layout.addWidget(self.import_folder_line_edit)
-        layout.addWidget(browse_import_button)
-        layout.addWidget(QLabel("Export Folder:"))
-        layout.addWidget(self.export_folder_line_edit)
-        layout.addWidget(browse_export_button)
-        layout.addWidget(save_button)
-        layout.addWidget(cancel_button)
+        
+        # Import Folder Layout
+        import_layout = QHBoxLayout()
+        import_layout.addWidget(QLabel("Import Folder:"))
+        import_layout.addWidget(self.import_folder_line_edit)
+        import_layout.addWidget(browse_import_button)
+
+        # Export Folder Layout
+        export_layout = QHBoxLayout()
+        export_layout.addWidget(QLabel("Export Folder:"))
+        export_layout.addWidget(self.export_folder_line_edit)
+        export_layout.addWidget(browse_export_button)
+
+        layout.addLayout(import_layout)
+        layout.addLayout(export_layout)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(save_button)
+        button_layout.addWidget(cancel_button)
+
+        layout.addLayout(button_layout)
 
         self.setLayout(layout)
 
@@ -82,12 +126,10 @@ class FolderSettingsDialog(QDialog):
     def save_folders(self):
         import_folder = self.import_folder_line_edit.text()
         export_folder = self.export_folder_line_edit.text()
-        
-        # Save to settings or handle further as needed
+
         if import_folder and export_folder:
-            # Emit signal to the main application or save directly
-            main_app.settings.setValue("import_folder", import_folder)
-            main_app.settings.setValue("export_path", export_folder)
+            self.main_app.settings.setValue("import_folder", import_folder)  # Use the stored reference
+            self.main_app.settings.setValue("export_path", export_folder)  # Use the stored reference
             self.close()
 
 class RemoveBGApp(QMainWindow):
@@ -215,23 +257,39 @@ class RemoveBGApp(QMainWindow):
         """)
         self.settings_button.clicked.connect(self.open_folder_settings)
 
-        self.close_button = QPushButton("X")
+        self.close_button = QPushButton("❌")
         self.close_button.setFixedSize(30, 30)
         self.close_button.setStyleSheet(""" 
             QPushButton {
-                background-color: #e74c3c; 
+                background-color: #FFFFFFFF; 
                 color: white; 
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #c0392b;
+                background-color: #F1F1F1FF;
             }
         """)
         self.close_button.clicked.connect(self.close_app)
+        
+            # Minimize Button
+        self.minimize_button = QPushButton("─")
+        self.minimize_button.setFixedSize(30, 30)
+        self.minimize_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FFFFFFFF; 
+                color: black; 
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background-color: #F1F1F1FF;
+            }
+        """)
+        self.minimize_button.clicked.connect(self.show_minimized)
 
         nav_layout.addWidget(self.title_label)
         nav_layout.addStretch()
         nav_layout.addWidget(self.settings_button)
+        nav_layout.addWidget(self.minimize_button)
         nav_layout.addWidget(self.close_button)
 
         main_layout.addWidget(nav_bar)
@@ -310,8 +368,9 @@ class RemoveBGApp(QMainWindow):
         return main_content
 
     def open_folder_settings(self):
-        dialog = FolderSettingsDialog(self.import_folder, self.export_path)
+        dialog = FolderSettingsDialog(self, self.import_folder, self.export_path)  # Pass self (main app)
         dialog.exec_()
+
 
     def go_to_main_content(self):
         self.stacked_widget.setCurrentWidget(self.main_content_widget)
@@ -323,6 +382,9 @@ class RemoveBGApp(QMainWindow):
         self.set_import_folder()
         self.set_export_folder()
 
+    def show_minimized(self):
+        self.showMinimized()  # ย่อหน้าต่างไปที่ taskbar
+        
     def close_app(self):
         self.close()
 
