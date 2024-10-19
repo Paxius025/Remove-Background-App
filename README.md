@@ -23,7 +23,7 @@ Follow these steps to set up and run the project locally:
 ### 1. Clone the Repository
 
 ```bash
-git clone <your-repository-url>a
+git clone https://github.com/Paxius025/Remove-Background-App.git
 cd remove-background-app
 ```
 
@@ -57,12 +57,7 @@ python ui.py
 
 ## 🔄 Changing the Default Paths
 
-The application allows users to browse for images and set an export location. By default, the following paths are used:
-
-- **Browse Path**: `C:\Users\panto\Downloads`
-- **Export Path**: `C:\Users\panto\OneDrive\Pictures\remvoebg`
-
-### 📂 Modifying the Browse Path
+### 📂 Modifying the Browse Path and Export Path
 
 To change the starting path when browsing for images:
 
@@ -70,15 +65,20 @@ To change the starting path when browsing for images:
 - **2.** Locate the `browse_image` method (around line 100).
 - **3.** Update the path in the `QFileDialog.getOpenFileName` function to your desired default directory.
 
-```python
-def browse_image(self):
-    file_name, _ = QFileDialog.getOpenFileName(self, "Open Image", "C:\\Users\\<your-path>\\Downloads", "Image Files (*.png *.jpg *.jpeg)")
-    if file_name:
-        self.image_path = file_name
-        pixmap = QPixmap(file_name).scaled(200, 200, Qt.KeepAspectRatio)
-        self.original_image_label.setPixmap(pixmap)
-        self.processed_image_label.clear()
-        self.loading_label.setText("Ready")
+```python 
+
+file_name, _ = QFileDialog.getOpenFileName(self, "Open Image", "C:\\Users\\<your-path>\\Browse_Path", "Image Files (*.png *.jpg *.jpeg)")
+```
+
+To change the starting path when browsing for images:
+
+- **1.** Open the `ui.py` file in your code editor.
+- **2.** Locate the `browse_image` method (around line 182).
+- **3.** Update the path in the `self.export_path = "C:\\Users\\<your-path>\\Export_Path"` function to your desired default directory.
+
+
+```python - 
+self.export_path = "C:\\Users\\<your-path>\\Export_Path"
 ```
 
 ### 5. Build the Executable (Optional)
