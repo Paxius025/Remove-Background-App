@@ -321,6 +321,20 @@ class RemoveBGApp(QMainWindow):
             }
         """
 
+        # สไตล์สำหรับปุ่มในสถานะปิดใช้งาน
+        button_style_disabled = """
+            QPushButton {
+                background-color: gray;
+                color: brown;
+                border-radius: 5px; 
+                padding: 10px;
+            }
+            QPushButton:disabled {
+                background-color: gray;
+                color: brown;
+            }
+        """
+
         # Left Panel Layout
         left_panel = QVBoxLayout()
         self.left_scroll_area = QScrollArea()
@@ -347,8 +361,9 @@ class RemoveBGApp(QMainWindow):
 
         # ปุ่ม "Remove Background" ในพาเนลขวา
         self.remove_bg_button = QPushButton("Remove Background")
-        self.remove_bg_button.setStyleSheet(button_style)
+        self.remove_bg_button.setStyleSheet(button_style_disabled)
         self.remove_bg_button.clicked.connect(self.start_background_removal)
+        self.remove_bg_button.setEnabled(False) 
         right_panel.addWidget(self.remove_bg_button)
 
         # เพิ่มพาเนลซ้ายและขวาเข้าใน content_layout
@@ -376,7 +391,7 @@ class RemoveBGApp(QMainWindow):
         """)
         main_layout.addWidget(self.progress_bar)
 
-        self.loading_label = QLabel("Status : Ready")
+        self.loading_label = QLabel("Ready")
         self.loading_label.setAlignment(Qt.AlignCenter)
         self.loading_label.setFont(QFont("Arial", 10, QFont.Bold))
         self.loading_label.setStyleSheet("color: #2c3e50; padding: 5px;")
@@ -417,6 +432,20 @@ class RemoveBGApp(QMainWindow):
             widget = self.left_scroll_layout.itemAt(i).widget()
             if widget:
                 widget.setParent(None)
+        self.loading_label.setText("Ready")
+
+        self.remove_bg_button.setEnabled(True)
+        self.remove_bg_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2980b9; 
+                color: white; 
+                border-radius: 5px; 
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #3498db;
+            }
+        """)
 
         display_size = 100
 
@@ -442,6 +471,19 @@ class RemoveBGApp(QMainWindow):
 
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
+            self.remove_bg_button.setEnabled(False)
+            self.remove_bg_button.setStyleSheet("""
+                QPushButton {
+                    background-color: gray;
+                    color: brown;
+                    border-radius: 5px; 
+                    padding: 10px;
+                }
+                QPushButton:disabled {
+                    background-color: gray;
+                    color: brown;
+                }
+            """)
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
 
@@ -454,6 +496,19 @@ class RemoveBGApp(QMainWindow):
         else:
             self.loading_label.setText("Please select images first.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
+            self.remove_bg_button.setEnabled(False)
+            self.remove_bg_button.setStyleSheet("""
+                QPushButton {
+                    background-color: gray;
+                    color: brown;
+                    border-radius: 5px; 
+                    padding: 10px;
+                }
+                QPushButton:disabled {
+                    background-color: gray;
+                    color: brown;
+                }
+            """)
 
     def show_popup(self, message):
         msg = QMessageBox(self)
