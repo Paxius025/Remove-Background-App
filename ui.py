@@ -1,9 +1,9 @@
 from PyQt5.QtWidgets import (
-    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog, 
-    QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox, 
+    QApplication, QMainWindow, QPushButton, QLabel, QFileDialog,
+    QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox,
     QScrollArea, QGridLayout, QStackedWidget, QDialog, QLineEdit
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings, QPoint
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings
 from PyQt5.QtGui import QPixmap, QFont, QIcon
 import sys
 import os
@@ -38,9 +38,9 @@ class BackgroundRemovalThread(QThread):
 class FolderSettingsDialog(QDialog):
     def __init__(self, main_app, import_folder, export_folder):
         super().__init__()
-        self.main_app = main_app  # Store the reference to the main app
+        self.main_app = main_app
 
-        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
+        self.setWindowFlags(Qt.Dialog | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Set Folder Paths")
         self.setFixedSize(400, 200)
 
@@ -52,8 +52,8 @@ class FolderSettingsDialog(QDialog):
             QPushButton {
                 background-color: #3498db; 
                 color: white; 
-                border-radius: 15px; 
-                padding: 10px 20px; 
+                border-radius: 5px; 
+                padding: 5px 10px; 
                 font-size: 14px; 
                 border: 2px solid transparent; 
             }
@@ -83,7 +83,7 @@ class FolderSettingsDialog(QDialog):
 
         # Layout setup
         layout = QVBoxLayout()
-        
+
         # Import Folder Layout
         import_layout = QHBoxLayout()
         import_layout.addWidget(QLabel("Import Folder:"))
@@ -100,6 +100,7 @@ class FolderSettingsDialog(QDialog):
         layout.addLayout(export_layout)
 
         button_layout = QHBoxLayout()
+        button_layout.addStretch()
         button_layout.addWidget(save_button)
         button_layout.addWidget(cancel_button)
 
@@ -124,7 +125,7 @@ class FolderSettingsDialog(QDialog):
         if import_folder and export_folder:
             self.main_app.settings.setValue("import_folder", import_folder)
             self.main_app.settings.setValue("export_path", export_folder)
-            self.main_app.settings.sync()  # Ensure settings are saved
+            self.main_app.settings.sync()
             self.main_app.import_folder = import_folder
             self.main_app.export_path = export_folder
             self.close()
@@ -133,7 +134,6 @@ class RemoveBGApp(QMainWindow):
     def __init__(self):
         super().__init__()
         self.settings = QSettings("RemoveBGApp", "Settings")
-        self.initUI()
         self.bg_thread = None
         self.image_paths = []
         self.processed_images = []
@@ -142,16 +142,18 @@ class RemoveBGApp(QMainWindow):
         self.import_folder = self.settings.value("import_folder", "")
         self.export_path = self.settings.value("export_path", "")
 
-        if not self.export_path:
-            self.prompt_initial_settings()  # Prompt for initial settings
-
         # Variables for dragging the window
         self.old_pos = self.pos()
         self.is_dragging = False
 
+        self.initUI()
+
+        if not self.export_path:
+            self.prompt_initial_settings()
+
     def initUI(self):
         self.setWindowTitle("Remove Background")
-        self.setGeometry(100, 100, 400, 600)
+        self.resize(800, 600)
         self.setWindowIcon(QIcon("assets/logo.png"))
 
         # Allow resizing and dragging by adjusting window flags
@@ -166,10 +168,7 @@ class RemoveBGApp(QMainWindow):
         """)
 
         # Center the window on the screen
-        screen_geometry = QApplication.desktop().screenGeometry()
-        x = (screen_geometry.width() - self.width()) // 2
-        y = (screen_geometry.height() - self.height()) // 2
-        self.move(x, y)
+        self.center_window()
 
         # Use a stacked widget to switch between the main menu and the app content
         self.stacked_widget = QStackedWidget(self)
@@ -185,6 +184,12 @@ class RemoveBGApp(QMainWindow):
 
         # Set the main content as the initial view
         self.stacked_widget.setCurrentWidget(self.main_content_widget)
+
+    def center_window(self):
+        frame_geometry = self.frameGeometry()
+        center_point = QApplication.desktop().availableGeometry().center()
+        frame_geometry.moveCenter(center_point)
+        self.move(frame_geometry.topLeft())
 
     def create_main_menu(self):
         main_menu = QWidget()
@@ -239,7 +244,11 @@ class RemoveBGApp(QMainWindow):
         nav_bar = QWidget()
         nav_layout = QHBoxLayout(nav_bar)
         nav_layout.setContentsMargins(5, 5, 5, 5)
-        nav_bar.setStyleSheet("background-color: #2c3e50; border-top-left-radius: 10px; border-top-right-radius: 10px;")
+        nav_bar.setStyleSheet("""
+            background-color: #2c3e50; 
+            border-top-left-radius: 10px; 
+            border-top-right-radius: 10px;
+        """)
 
         self.title_label = QLabel("Remove Background by Pantong🧑🏻‍💻 and ChatGPT🤖")
         self.title_label.setFont(QFont("Arial", 14, QFont.Bold))
@@ -260,21 +269,6 @@ class RemoveBGApp(QMainWindow):
         """)
         self.settings_button.clicked.connect(self.open_folder_settings)
 
-        self.close_button = QPushButton("❌")
-        self.close_button.setFixedSize(30, 30)
-        self.close_button.setStyleSheet(""" 
-            QPushButton {
-                background-color: transparent; 
-                color: white; 
-                border-radius: 15px;
-            }
-            QPushButton:hover {
-                background-color: rgba(255, 255, 255, 0.2);
-            }
-        """)
-        self.close_button.clicked.connect(self.close_app)
-
-        # Minimize Button
         self.minimize_button = QPushButton("─")
         self.minimize_button.setFixedSize(30, 30)
         self.minimize_button.setStyleSheet(""" 
@@ -289,6 +283,20 @@ class RemoveBGApp(QMainWindow):
         """)
         self.minimize_button.clicked.connect(self.show_minimized)
 
+        self.close_button = QPushButton("❌")
+        self.close_button.setFixedSize(30, 30)
+        self.close_button.setStyleSheet(""" 
+            QPushButton {
+                background-color: transparent; 
+                color: white; 
+                border-radius: 15px;
+            }
+            QPushButton:hover {
+                background-color: rgba(255, 255, 255, 0.2);
+            }
+        """)
+        self.close_button.clicked.connect(self.close_app)
+
         nav_layout.addWidget(self.title_label)
         nav_layout.addStretch()
         nav_layout.addWidget(self.settings_button)
@@ -300,20 +308,52 @@ class RemoveBGApp(QMainWindow):
 
         content_layout = QHBoxLayout()
 
+        # สไตล์สำหรับปุ่ม
+        button_style = """
+            QPushButton {
+                background-color: #2980b9; 
+                color: white; 
+                border-radius: 5px; 
+                padding: 10px;
+            }
+            QPushButton:hover {
+                background-color: #3498db;
+            }
+        """
+
+        # Left Panel Layout
+        left_panel = QVBoxLayout()
         self.left_scroll_area = QScrollArea()
         self.left_scroll_area.setWidgetResizable(True)
         self.left_scroll_content = QWidget()
         self.left_scroll_layout = QGridLayout(self.left_scroll_content)
         self.left_scroll_area.setWidget(self.left_scroll_content)
+        left_panel.addWidget(self.left_scroll_area)
 
+        # ปุ่ม "Browse Images" ในพาเนลซ้าย
+        self.browse_button = QPushButton("Browse Images")
+        self.browse_button.setStyleSheet(button_style)
+        self.browse_button.clicked.connect(self.browse_images)
+        left_panel.addWidget(self.browse_button)
+
+        # Right Panel Layout
+        right_panel = QVBoxLayout()
         self.right_scroll_area = QScrollArea()
         self.right_scroll_area.setWidgetResizable(True)
         self.right_scroll_content = QWidget()
         self.right_scroll_layout = QGridLayout(self.right_scroll_content)
         self.right_scroll_area.setWidget(self.right_scroll_content)
+        right_panel.addWidget(self.right_scroll_area)
 
-        content_layout.addWidget(self.left_scroll_area)
-        content_layout.addWidget(self.right_scroll_area)
+        # ปุ่ม "Remove Background" ในพาเนลขวา
+        self.remove_bg_button = QPushButton("Remove Background")
+        self.remove_bg_button.setStyleSheet(button_style)
+        self.remove_bg_button.clicked.connect(self.start_background_removal)
+        right_panel.addWidget(self.remove_bg_button)
+
+        # เพิ่มพาเนลซ้ายและขวาเข้าใน content_layout
+        content_layout.addLayout(left_panel)
+        content_layout.addLayout(right_panel)
 
         main_layout.addLayout(content_layout)
 
@@ -336,33 +376,11 @@ class RemoveBGApp(QMainWindow):
         """)
         main_layout.addWidget(self.progress_bar)
 
-        self.loading_label = QLabel("Ready")
+        self.loading_label = QLabel("Status : Ready")
         self.loading_label.setAlignment(Qt.AlignCenter)
         self.loading_label.setFont(QFont("Arial", 10, QFont.Bold))
         self.loading_label.setStyleSheet("color: #2c3e50; padding: 5px;")
         main_layout.addWidget(self.loading_label)
-
-        button_style = """
-            QPushButton {
-                background-color: #2980b9; 
-                color: white; 
-                border-radius: 5px; 
-                padding: 10px;
-            }
-            QPushButton:hover {
-                background-color: #3498db;
-            }
-        """
-
-        self.browse_button = QPushButton("Browse Images")
-        self.browse_button.setStyleSheet(button_style)
-        self.browse_button.clicked.connect(self.browse_images)
-        main_layout.addWidget(self.browse_button)
-
-        self.remove_bg_button = QPushButton("Remove Background")
-        self.remove_bg_button.setStyleSheet(button_style)
-        self.remove_bg_button.clicked.connect(self.start_background_removal)
-        main_layout.addWidget(self.remove_bg_button)
 
         return main_content
 
@@ -377,16 +395,18 @@ class RemoveBGApp(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.main_menu_widget)
 
     def prompt_initial_settings(self):
-        self.open_folder_settings()  # Prompt to set paths
+        self.open_folder_settings()
 
     def show_minimized(self):
-        self.showMinimized()  # Minimize the window
+        self.showMinimized()
         
     def close_app(self):
         self.close()
 
     def browse_images(self):
-        file_names, _ = QFileDialog.getOpenFileNames(self, "Open Images", self.import_folder, "Image Files (*.png *.jpg *.jpeg)")
+        file_names, _ = QFileDialog.getOpenFileNames(
+            self, "Open Images", self.import_folder, "Image Files (*.png *.jpg *.jpeg)"
+        )
         if file_names:
             self.image_paths = file_names
             self.processed_images.clear()
@@ -404,7 +424,9 @@ class RemoveBGApp(QMainWindow):
             pixmap = QPixmap(image_path)
             if not pixmap.isNull():
                 label = QLabel()
-                scaled_pixmap = pixmap.scaled(display_size, display_size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                scaled_pixmap = pixmap.scaled(
+                    display_size, display_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
                 label.setPixmap(scaled_pixmap)
                 label.setFixedSize(display_size, display_size)
                 self.left_scroll_layout.addWidget(label, idx // 2, idx % 2)
@@ -416,7 +438,7 @@ class RemoveBGApp(QMainWindow):
             for i in reversed(range(self.right_scroll_layout.count())): 
                 widget = self.right_scroll_layout.itemAt(i).widget()
                 if widget:
-                    widget.setParent(None)  # Clear the processed images
+                    widget.setParent(None)
 
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
@@ -473,7 +495,8 @@ class RemoveBGApp(QMainWindow):
             self.open_export_folder()
         else:
             self.loading_label.setText("Error processing images.")
-            
+            self.loading_label.setStyleSheet("color: #e74c3c;")
+
     def open_export_folder(self):
         export_path = self.export_path
         if export_path and os.path.exists(export_path):
@@ -497,12 +520,12 @@ class RemoveBGApp(QMainWindow):
             pixmap = QPixmap(processed_image)
             if not pixmap.isNull():
                 label = QLabel()
-                scaled_pixmap = pixmap.scaled(display_size, display_size, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                scaled_pixmap = pixmap.scaled(
+                    display_size, display_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                )
                 label.setPixmap(scaled_pixmap)
                 label.setFixedSize(display_size, display_size)
                 self.right_scroll_layout.addWidget(label, idx // 2, idx % 2)
-
-    # Remove the open_export_folder method since you wanted to remove it
 
     # Implement mouse events for dragging
     def mousePressEvent(self, event):
