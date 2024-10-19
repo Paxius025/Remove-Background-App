@@ -3,7 +3,6 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QPropertyAnimation, QRect
 from PyQt5.QtGui import QPixmap, QPalette, QColor, QFont, QIcon
-
 import sys
 import os
 import subprocess
@@ -14,7 +13,7 @@ class RemoveBGApp(QMainWindow):
         self.initUI()
         
     def initUI(self):
-        self.setWindowTitle("Remove Background App")
+        self.setWindowTitle("Remove Background")
         self.setGeometry(100, 100, 600, 400)  # Smaller window size
         self.setWindowIcon(QIcon("assets/logo.png"))
 
