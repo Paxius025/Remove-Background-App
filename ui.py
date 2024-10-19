@@ -36,17 +36,12 @@ class BackgroundRemovalThread(QThread):
         except Exception as e:
             self.result_signal.emit("error", str(e))
 
-from PyQt5.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFileDialog
-from PyQt5.QtCore import Qt
-
 class FolderSettingsDialog(QDialog):
     def __init__(self, main_app, import_folder, export_folder):
         super().__init__()
         self.main_app = main_app  # Store the reference to the main app
 
-        # Remove the title bar
         self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
-
         self.setWindowTitle("Set Folder Paths")
         self.setFixedSize(400, 200)
 
@@ -56,18 +51,18 @@ class FolderSettingsDialog(QDialog):
         # Styling for buttons
         button_style = """
             QPushButton {
-                background-color: #3498db; /* Base Color */
+                background-color: #3498db; 
                 color: white; 
                 border-radius: 15px; 
-                padding: 10px 20px; /* More padding for a better look */
-                font-size: 14px; /* Increase font size */
-                border: 2px solid transparent; /* Border for hover effect */
+                padding: 10px 20px; 
+                font-size: 14px; 
+                border: 2px solid transparent; 
             }
             QPushButton:hover {
-                background-color: #2980b9; /* Darker color on hover */
+                background-color: #2980b9; 
             }
             QPushButton:pressed {
-                background-color: #1abc9c; /* Color when pressed */
+                background-color: #1abc9c; 
             }
         """
 
@@ -119,7 +114,7 @@ class FolderSettingsDialog(QDialog):
             self.import_folder_line_edit.setText(folder)
 
     def browse_export_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Select Export Folder", "")
+        folder = QFileDialog.getExistingDirectory(self, "Select Export Folder", self.main_app.export_path)
         if folder:
             self.export_folder_line_edit.setText(folder)
 
@@ -128,10 +123,11 @@ class FolderSettingsDialog(QDialog):
         export_folder = self.export_folder_line_edit.text()
 
         if import_folder and export_folder:
-            self.main_app.settings.setValue("import_folder", import_folder)  # Use the stored reference
-            self.main_app.settings.setValue("export_path", export_folder)  # Use the stored reference
+            self.main_app.settings.setValue("import_folder", import_folder)
+            self.main_app.settings.setValue("export_path", export_folder)
+            self.main_app.settings.sync()  # Ensure settings are saved
+            self.main_app.export_path = export_folder
             self.close()
-
 class RemoveBGApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -140,12 +136,13 @@ class RemoveBGApp(QMainWindow):
         self.bg_thread = None
         self.image_paths = []
         self.processed_images = []
+
+        # ดึงเส้นทาง import และ export จาก QSettings
         self.import_folder = self.settings.value("import_folder", "")
         self.export_path = self.settings.value("export_path", "")
 
-        # If paths are not set, prompt the user to set them
-        if not self.import_folder or not self.export_path:
-            self.prompt_initial_settings()
+        if not self.export_path:
+            self.prompt_initial_settings()  # ตรวจสอบการตั้งค่าเส้นทางเมื่อเริ่มต้น
 
     def initUI(self):
         self.setWindowTitle("Remove Background")
@@ -160,8 +157,6 @@ class RemoveBGApp(QMainWindow):
                 border: 1px solid #888; 
             }
         """)
-
-        self.dragPos = None
 
         screen_geometry = QApplication.desktop().screenGeometry()
         x = (screen_geometry.width() - self.width()) // 2
@@ -270,11 +265,11 @@ class RemoveBGApp(QMainWindow):
             }
         """)
         self.close_button.clicked.connect(self.close_app)
-        
-            # Minimize Button
+
+        # Minimize Button
         self.minimize_button = QPushButton("─")
         self.minimize_button.setFixedSize(30, 30)
-        self.minimize_button.setStyleSheet("""
+        self.minimize_button.setStyleSheet(""" 
             QPushButton {
                 background-color: #FFFFFFFF; 
                 color: black; 
@@ -360,17 +355,16 @@ class RemoveBGApp(QMainWindow):
         self.remove_bg_button.clicked.connect(self.start_background_removal)
         main_layout.addWidget(self.remove_bg_button)
 
-        self.open_folder_button = QPushButton("Open Export Folder")
-        self.open_folder_button.setStyleSheet(button_style)
-        self.open_folder_button.clicked.connect(self.open_export_folder)
-        main_layout.addWidget(self.open_folder_button)
+        # self.open_folder_button = QPushButton("Open Export Folder")
+        # self.open_folder_button.setStyleSheet(button_style)
+        # self.open_folder_button.clicked.connect(self.open_export_folder)
+        # main_layout.addWidget(self.open_folder_button)
 
         return main_content
 
     def open_folder_settings(self):
-        dialog = FolderSettingsDialog(self, self.import_folder, self.export_path)  # Pass self (main app)
+        dialog = FolderSettingsDialog(self, self.import_folder, self.export_path)
         dialog.exec_()
-
 
     def go_to_main_content(self):
         self.stacked_widget.setCurrentWidget(self.main_content_widget)
@@ -379,11 +373,10 @@ class RemoveBGApp(QMainWindow):
         self.stacked_widget.setCurrentWidget(self.main_menu_widget)
 
     def prompt_initial_settings(self):
-        self.set_import_folder()
-        self.set_export_folder()
+        self.open_folder_settings()  # Prompt to set paths
 
     def show_minimized(self):
-        self.showMinimized()  # ย่อหน้าต่างไปที่ taskbar
+        self.showMinimized()  # Minimize the window
         
     def close_app(self):
         self.close()
@@ -416,7 +409,6 @@ class RemoveBGApp(QMainWindow):
 
     def start_background_removal(self):
         if self.image_paths:
-            # Clear the previously processed images in the output panel
             for i in reversed(range(self.right_scroll_layout.count())): 
                 widget = self.right_scroll_layout.itemAt(i).widget()
                 if widget:
@@ -427,10 +419,8 @@ class RemoveBGApp(QMainWindow):
             self.progress_bar.setVisible(True)
             self.progress_bar.setValue(0)
 
-            # Clear any previously processed images in the processed_images list
             self.processed_images.clear()
 
-            # Start the background removal thread
             self.bg_thread = BackgroundRemovalThread(self.image_paths, self.export_path)
             self.bg_thread.progress_signal.connect(self.update_progress_bar)
             self.bg_thread.result_signal.connect(self.update_ui_after_removal)
@@ -441,7 +431,7 @@ class RemoveBGApp(QMainWindow):
 
     def show_popup(self, message):
         msg = QMessageBox(self)
-        msg.setWindowTitle("File Size Warning")
+        msg.setWindowTitle("Warning")
         msg.setText(message)
         msg.setIcon(QMessageBox.Warning)
         msg.setStandardButtons(QMessageBox.Ok)
@@ -476,9 +466,13 @@ class RemoveBGApp(QMainWindow):
             self.progress_bar.setVisible(False)
             self.loading_label.setText("Backgrounds removed successfully!")
             self.loading_label.setStyleSheet("color: #27ae60;")
+
+            # เปิดโฟลเดอร์ที่เก็บไฟล์ผลลัพธ์
+            self.open_export_folder()
         else:
             self.loading_label.setText("Error processing images.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
+
 
     def display_processed_images(self):
         for i in reversed(range(self.right_scroll_layout.count())): 
@@ -497,22 +491,18 @@ class RemoveBGApp(QMainWindow):
                 label.setFixedSize(display_size, display_size)
                 self.right_scroll_layout.addWidget(label, idx // 2, idx % 2)
 
-    def open_export_folder(self):
-        if self.export_path and os.path.exists(self.export_path):
-            subprocess.Popen(f'explorer "{self.export_path}"')
-        else:
-            self.show_popup("Export folder path is not set or does not exist.")
+    import os  # Make sure to import os at the top of your script
 
+def open_export_folder(self):
+    export_path = self.export_path
+    if export_path and os.path.exists(export_path):
+        try:
+            os.startfile(export_path)
+        except Exception as e:
+            self.show_popup("Failed to open the export folder.")
+    else:
+        self.show_popup("Export folder path is not set or does not exist.")
 
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.dragPos = event.globalPos()
-
-    def mouseMoveEvent(self, event):
-        if self.dragPos:
-            self.move(self.pos() + event.globalPos() - self.dragPos)
-            self.dragPos = event.globalPos()
-            event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
