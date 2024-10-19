@@ -60,7 +60,7 @@ python ui.py
 To build an executable version of the app:
 
 ```bash
-pyinstaller --noconfirm --onefile --windowed ui.py
+pyinstaller --onefile --windowed --name removeBg --icon=assets/favicon.ico ui.py
 ```
 
 After building, you can find the executable in the \`dist\` folder.
@@ -76,7 +76,6 @@ remove-background-app/
 ├── ui.py
 ├── utils.py
 ├── README.MD
-└── requirements.txt
 ```
 
 - **env/**: Virtual environment folder (excluded from Git).
@@ -85,7 +84,6 @@ remove-background-app/
 - **ui.py**: The main application script containing the PyQt5 UI.
 - **utils.py**: Utility functions, including background removal logic.
 - **requirements.txt**: List of dependencies needed for the project.
-- **generate_readme.sh**: This script to generate the markdown file.
 
 ## 📝 Important Notes
 
