@@ -8,7 +8,8 @@ import os
 import subprocess
 
 class BackgroundRemovalThread(QThread):
-    progress_signal = pyqtSignal(str, str)  # Signal to update the UI with status
+    progress_signal = pyqtSignal(int)  # Signal to update the progress bar
+    result_signal = pyqtSignal(str, str)  # Signal to update the UI with status
 
     def __init__(self, image_path, export_path):
         super().__init__()
@@ -18,14 +19,20 @@ class BackgroundRemovalThread(QThread):
     def run(self):
         try:
             from utils import remove_background
+            self.progress_signal.emit(0)  # Initial progress
+            
+            # Simulate progress update for demo purposes (replace with actual steps in processing)
+            for i in range(1, 101):
+                self.progress_signal.emit(i)
+                self.msleep(30)  # Simulate some processing time
+            
             output_file = remove_background(self.image_path, self.export_path)
-
             if output_file:
-                self.progress_signal.emit("success", output_file)
+                self.result_signal.emit("success", output_file)
             else:
-                self.progress_signal.emit("error", "")
+                self.result_signal.emit("error", "")
         except Exception as e:
-            self.progress_signal.emit("error", str(e))
+            self.result_signal.emit("error", str(e))
 
 class RemoveBGApp(QMainWindow):
     def __init__(self):
@@ -106,10 +113,29 @@ class RemoveBGApp(QMainWindow):
 
         layout.addLayout(image_layout)
 
-        # Loading animation (progress bar)
+        # Beautiful Loading Animation (Progress Bar)
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #3498db;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #f0f0f0;
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(
+                    spread:pad, x1:0, y1:0, x2:1, y2:1, 
+                    stop:0 #6dd5ed, stop:1 #2193b0
+                );
+                border-radius: 5px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
         self.loading_label = QLabel("Ready")
         self.loading_label.setAlignment(Qt.AlignCenter)
-        self.loading_label.setFont(QFont("Arial", 10))
+        self.loading_label.setFont(QFont("Arial", 10, QFont.Bold))
         self.loading_label.setStyleSheet("color: #2c3e50; padding: 5px;")
         layout.addWidget(self.loading_label)
 
@@ -163,16 +189,23 @@ class RemoveBGApp(QMainWindow):
         if self.image_path:
             self.loading_label.setText("Removing background, please wait...")
             self.loading_label.setStyleSheet("color: #e67e22;")
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setValue(0)
 
             # Start the background removal thread
             self.bg_thread = BackgroundRemovalThread(self.image_path, self.export_path)
-            self.bg_thread.progress_signal.connect(self.update_ui_after_removal)
+            self.bg_thread.progress_signal.connect(self.update_progress_bar)
+            self.bg_thread.result_signal.connect(self.update_ui_after_removal)
             self.bg_thread.start()
         else:
             self.loading_label.setText("Please select an image first.")
             self.loading_label.setStyleSheet("color: #e74c3c;")
 
+    def update_progress_bar(self, value):
+        self.progress_bar.setValue(value)
+
     def update_ui_after_removal(self, status, output_file):
+        self.progress_bar.setVisible(False)
         if status == "success":
             pixmap = QPixmap(output_file).scaled(200, 200, Qt.KeepAspectRatio)
             self.processed_image_label.setPixmap(pixmap)
