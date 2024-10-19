@@ -3,11 +3,10 @@ from PyQt5.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QWidget, QProgressBar, QMessageBox, 
     QScrollArea, QGridLayout, QStackedWidget, QDialog, QLineEdit
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings
+from PyQt5.QtCore import Qt, QThread, pyqtSignal, QSettings, QPoint
 from PyQt5.QtGui import QPixmap, QFont, QIcon
 import sys
 import os
-import subprocess
 
 class BackgroundRemovalThread(QThread):
     progress_signal = pyqtSignal(int)
@@ -41,7 +40,7 @@ class FolderSettingsDialog(QDialog):
         super().__init__()
         self.main_app = main_app  # Store the reference to the main app
 
-        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint)
+        self.setWindowFlags(Qt.Dialog | Qt.CustomizeWindowHint | Qt.WindowTitleHint | Qt.WindowCloseButtonHint)
         self.setWindowTitle("Set Folder Paths")
         self.setFixedSize(400, 200)
 
@@ -126,8 +125,10 @@ class FolderSettingsDialog(QDialog):
             self.main_app.settings.setValue("import_folder", import_folder)
             self.main_app.settings.setValue("export_path", export_folder)
             self.main_app.settings.sync()  # Ensure settings are saved
+            self.main_app.import_folder = import_folder
             self.main_app.export_path = export_folder
             self.close()
+
 class RemoveBGApp(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -137,19 +138,25 @@ class RemoveBGApp(QMainWindow):
         self.image_paths = []
         self.processed_images = []
 
-        # ดึงเส้นทาง import และ export จาก QSettings
+        # Retrieve import and export paths from QSettings
         self.import_folder = self.settings.value("import_folder", "")
         self.export_path = self.settings.value("export_path", "")
 
         if not self.export_path:
-            self.prompt_initial_settings()  # ตรวจสอบการตั้งค่าเส้นทางเมื่อเริ่มต้น
+            self.prompt_initial_settings()  # Prompt for initial settings
+
+        # Variables for dragging the window
+        self.old_pos = self.pos()
+        self.is_dragging = False
 
     def initUI(self):
         self.setWindowTitle("Remove Background")
-        self.setGeometry(100, 100, 1200, 600)
+        self.setGeometry(100, 100, 400, 600)
         self.setWindowIcon(QIcon("assets/logo.png"))
 
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint)
+        # Allow resizing and dragging by adjusting window flags
+        self.setWindowFlags(Qt.Window | Qt.CustomizeWindowHint)
+
         self.setStyleSheet(""" 
             QMainWindow {
                 background-color: #f0f0f0; 
@@ -158,6 +165,7 @@ class RemoveBGApp(QMainWindow):
             }
         """)
 
+        # Center the window on the screen
         screen_geometry = QApplication.desktop().screenGeometry()
         x = (screen_geometry.width() - self.width()) // 2
         y = (screen_geometry.height() - self.height()) // 2
@@ -256,12 +264,12 @@ class RemoveBGApp(QMainWindow):
         self.close_button.setFixedSize(30, 30)
         self.close_button.setStyleSheet(""" 
             QPushButton {
-                background-color: #FFFFFFFF; 
+                background-color: transparent; 
                 color: white; 
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #F1F1F1FF;
+                background-color: rgba(255, 255, 255, 0.2);
             }
         """)
         self.close_button.clicked.connect(self.close_app)
@@ -271,12 +279,12 @@ class RemoveBGApp(QMainWindow):
         self.minimize_button.setFixedSize(30, 30)
         self.minimize_button.setStyleSheet(""" 
             QPushButton {
-                background-color: #FFFFFFFF; 
-                color: black; 
+                background-color: transparent; 
+                color: white; 
                 border-radius: 15px;
             }
             QPushButton:hover {
-                background-color: #F1F1F1FF;
+                background-color: rgba(255, 255, 255, 0.2);
             }
         """)
         self.minimize_button.clicked.connect(self.show_minimized)
@@ -287,6 +295,7 @@ class RemoveBGApp(QMainWindow):
         nav_layout.addWidget(self.minimize_button)
         nav_layout.addWidget(self.close_button)
 
+        nav_bar.setFixedHeight(50)
         main_layout.addWidget(nav_bar)
 
         content_layout = QHBoxLayout()
@@ -354,11 +363,6 @@ class RemoveBGApp(QMainWindow):
         self.remove_bg_button.setStyleSheet(button_style)
         self.remove_bg_button.clicked.connect(self.start_background_removal)
         main_layout.addWidget(self.remove_bg_button)
-
-        # self.open_folder_button = QPushButton("Open Export Folder")
-        # self.open_folder_button.setStyleSheet(button_style)
-        # self.open_folder_button.clicked.connect(self.open_export_folder)
-        # main_layout.addWidget(self.open_folder_button)
 
         return main_content
 
@@ -466,13 +470,20 @@ class RemoveBGApp(QMainWindow):
             self.progress_bar.setVisible(False)
             self.loading_label.setText("Backgrounds removed successfully!")
             self.loading_label.setStyleSheet("color: #27ae60;")
-
-            # เปิดโฟลเดอร์ที่เก็บไฟล์ผลลัพธ์
             self.open_export_folder()
         else:
             self.loading_label.setText("Error processing images.")
-            self.loading_label.setStyleSheet("color: #e74c3c;")
-
+            
+    def open_export_folder(self):
+        export_path = self.export_path
+        if export_path and os.path.exists(export_path):
+            try:
+                os.startfile(export_path)
+            except Exception as e:
+                print(f"Error opening export folder: {e}")
+                self.show_popup("Failed to open the export folder.")
+        else:
+            self.show_popup("Export folder path is not set or does not exist.")
 
     def display_processed_images(self):
         for i in reversed(range(self.right_scroll_layout.count())): 
@@ -491,18 +502,24 @@ class RemoveBGApp(QMainWindow):
                 label.setFixedSize(display_size, display_size)
                 self.right_scroll_layout.addWidget(label, idx // 2, idx % 2)
 
-    import os  # Make sure to import os at the top of your script
+    # Remove the open_export_folder method since you wanted to remove it
 
-def open_export_folder(self):
-    export_path = self.export_path
-    if export_path and os.path.exists(export_path):
-        try:
-            os.startfile(export_path)
-        except Exception as e:
-            self.show_popup("Failed to open the export folder.")
-    else:
-        self.show_popup("Export folder path is not set or does not exist.")
+    # Implement mouse events for dragging
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = True
+            self.old_pos = event.globalPos() - self.frameGeometry().topLeft()
+            event.accept()
 
+    def mouseMoveEvent(self, event):
+        if self.is_dragging:
+            self.move(event.globalPos() - self.old_pos)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.is_dragging = False
+            event.accept()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
